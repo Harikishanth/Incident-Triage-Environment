@@ -19,7 +19,7 @@ from pydantic import Field
 class IncidentTriageAction(Action):
     """What the AI agent sends back — its analysis of the incident."""
 
-    response: str = Field(..., description="Agent's analysis of the incident report")
+    response: str = Field(default="", description="Agent's analysis of the incident report")
 
 
 class IncidentTriageObservation(Observation):
