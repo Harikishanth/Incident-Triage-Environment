@@ -5,9 +5,9 @@ MANDATORY environment variables:
     HF_TOKEN       Your Hugging Face API key
     API_BASE_URL   LLM API endpoint (default: HF router)
     MODEL_NAME     Model identifier (default: Qwen2.5-72B-Instruct)
-    ENV_URL        Environment URL (default: live HF Space)
+    ENV_URL        Live environment URL (default: HF Space)
 
-STDOUT FORMAT (strict):
+STDOUT FORMAT (required by hackathon, strictly):
     [START] task=<name> env=<benchmark> model=<model_name>
     [STEP]  step=<n> action=<str> reward=<0.00> done=<true|false> error=<msg|null>
     [END]   success=<true|false> steps=<n> score=<0.00> rewards=<r1,r2,...>
@@ -18,8 +18,8 @@ import os
 import textwrap
 from typing import List, Optional
 
+import httpx
 from openai import OpenAI
-from incident_triage_env import IncidentTriageAction, IncidentTriageEnv
 
 # ── Environment variables ────────────────────────────────────────────────────
 HF_TOKEN = os.getenv("HF_TOKEN")
@@ -34,8 +34,8 @@ if not HF_TOKEN:
 # ── Constants ────────────────────────────────────────────────────────────────
 TASK_NAME = "incident_triage"
 BENCHMARK = "incident_triage_env"
-MAX_STEPS = 3           # 3 tasks: easy, medium, hard
-MAX_TOTAL_REWARD = 3.0  # 1.0 per task
+MAX_STEPS = 3           # 3 tasks: easy → medium → hard
+MAX_TOTAL_REWARD = 3.0  # max 1.0 per task
 SUCCESS_SCORE_THRESHOLD = 0.5
 TEMPERATURE = 0.3
 MAX_TOKENS = 512
@@ -55,7 +55,7 @@ SYSTEM_PROMPT = textwrap.dedent("""
 """).strip()
 
 
-# ── Logging (strict format required by hackathon) ────────────────────────────
+# ── Logging (strict hackathon format) ────────────────────────────────────────
 def log_start(task: str, env: str, model: str) -> None:
     print(f"[START] task={task} env={env} model={model}", flush=True)
 
@@ -108,6 +108,19 @@ def get_model_response(client: OpenAI, incident_report: str, task_id: str, feedb
         return "Unable to analyze incident."
 
 
+# ── Environment HTTP calls ────────────────────────────────────────────────────
+async def env_reset(http: httpx.AsyncClient) -> dict:
+    r = await http.post(f"{ENV_URL}/reset", json={})
+    r.raise_for_status()
+    return r.json()
+
+
+async def env_step(http: httpx.AsyncClient, response_text: str) -> dict:
+    r = await http.post(f"{ENV_URL}/step", json={"response": response_text})
+    r.raise_for_status()
+    return r.json()
+
+
 # ── Main loop ─────────────────────────────────────────────────────────────────
 async def main() -> None:
     llm_client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
@@ -119,39 +132,38 @@ async def main() -> None:
 
     log_start(task=TASK_NAME, env=BENCHMARK, model=MODEL_NAME)
 
-    env = IncidentTriageEnv(base_url=ENV_URL)
-
     try:
-        # Reset — receive the first incident report
-        result = env.reset()
-        obs = result.observation
-        done = result.done
+        async with httpx.AsyncClient(timeout=60.0) as http:
+            # Reset — get first incident report
+            result = await env_reset(http)
+            obs = result["observation"]
+            done = result.get("done", False)
 
-        for step in range(1, MAX_STEPS + 1):
-            if done:
-                break
+            for step in range(1, MAX_STEPS + 1):
+                if done:
+                    break
 
-            # Get LLM response for this incident
-            response = get_model_response(
-                llm_client,
-                incident_report=obs.incident_report,
-                task_id=obs.task_id,
-                feedback=obs.feedback,
-            )
+                # Ask LLM to analyze this incident
+                response = get_model_response(
+                    llm_client,
+                    incident_report=obs["incident_report"],
+                    task_id=obs["task_id"],
+                    feedback=obs["feedback"],
+                )
 
-            # Step the environment
-            result = env.step(IncidentTriageAction(response=response))
-            obs = result.observation
-            reward = result.reward or 0.0
-            done = result.done
+                # Submit to grader
+                result = await env_step(http, response)
+                obs = result["observation"]
+                reward = result.get("reward") or 0.0
+                done = result.get("done", False)
 
-            rewards.append(reward)
-            steps_taken = step
+                rewards.append(reward)
+                steps_taken = step
 
-            log_step(step=step, action=response, reward=reward, done=done, error=None)
+                log_step(step=step, action=response, reward=reward, done=done, error=None)
 
-            if done:
-                break
+                if done:
+                    break
 
         score = sum(rewards) / MAX_TOTAL_REWARD if MAX_TOTAL_REWARD > 0 else 0.0
         score = min(max(score, 0.0), 1.0)
@@ -161,10 +173,6 @@ async def main() -> None:
         print(f"[DEBUG] Error during episode: {e}", flush=True)
 
     finally:
-        try:
-            env.close()
-        except Exception as e:
-            print(f"[DEBUG] env.close() error: {e}", flush=True)
         log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
 
 
