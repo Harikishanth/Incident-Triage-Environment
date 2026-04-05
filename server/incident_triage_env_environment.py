@@ -283,7 +283,7 @@ def grade_easy(response: str, scenario: dict) -> float:
     keywords = scenario["keywords"]
     required = scenario["required_count"]
 
-    hits = sum(1 for kw in keywords if kw in r)
+    hits = sum(1 for kw in keywords if kw in r and f"not {kw}" not in r and f"not a {kw}" not in r)
 
     if hits >= required:
         score = 0.5 + min(0.5, (hits - required) * 0.1 + 0.3)

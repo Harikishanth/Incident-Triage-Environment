@@ -37,3 +37,9 @@ class IncidentTriageObservation(Observation):
     feedback: str = Field(
         default="", description="Feedback from previous step if any"
     )
+    done: bool = Field(
+        default=False, description="Whether the episode is complete"
+    )
+    reward: float = Field(
+        default=0.0, description="The reward for the action"
+    )

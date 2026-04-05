@@ -52,7 +52,7 @@ app = create_app(
     IncidentTriageAction,
     IncidentTriageObservation,
     env_name="incident_triage_env",
-    max_concurrent_envs=1,  # increase this number to allow more concurrent WebSocket sessions
+    max_concurrent_envs=25,  # increased to support rigorous multi-agent evaluation scoring
 )
 
 
