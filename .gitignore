@@ -30,3 +30,7 @@ env/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local logs
+inference*.txt
+uvicorn*.log

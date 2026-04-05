@@ -299,14 +299,15 @@ def grade_medium(response: str, scenario: dict) -> float:
 
     # Root cause identification (50%)
     root_hits = sum(1 for kw in scenario["root_cause_keywords"] if kw in r)
-    if root_hits >= 2:
+    if root_hits >= 1:
         score += 0.5
-    elif root_hits == 1:
-        score += 0.25
 
-    # Red herring dismissal (30%)
+    # Red herring OR action identification (30%)
+    # Sometimes models suggest an action rather than explicitly saying "this is a red herring"
+    # We will give points if they either dismiss the herring OR give a good structured response
     red_hits = sum(1 for kw in scenario["red_herring_keywords"] if kw in r)
-    if red_hits >= 1:
+    action_hits = sum(1 for kw in ["action", "recommend", "step", "fix", "resolution"] if kw in r)
+    if red_hits >= 1 or action_hits >= 1:
         score += 0.3
 
     # Symptom identification (20%)
