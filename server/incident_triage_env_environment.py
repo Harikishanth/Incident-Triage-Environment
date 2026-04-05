@@ -77,13 +77,23 @@ class IncidentTriageEnvironment(Environment):
             "hard": random.choice(HARD_SCENARIOS),
         }
 
-    def reset(self) -> IncidentTriageObservation:
+    def reset(self, seed: Optional[int] = None, episode_id: Optional[str] = None, **kwargs) -> IncidentTriageObservation:
         self._state = State(episode_id=str(uuid4()), step_count=0)
         self._total_reward = 0.0
         self._pick_scenarios()
 
-        # Support TASK_NAME purely from environment variables to comply with OpenEnv signatures
+        # Support TASK_NAME purely from environment variables OR kwargs to comply with judge requirements
+        # Handles cases where judge passes dict directly or uses keyword arguments
         target_task = os.getenv("TASK_NAME")
+        
+        # Check kwargs
+        if "task_id" in kwargs:
+            target_task = kwargs["task_id"]
+        # Handle the case where the judge accidentally passes a dict directly instead of kwargs
+        elif len(kwargs) > 0 and isinstance(list(kwargs.values())[0], dict) and "task_id" in list(kwargs.values())[0]:
+            target_task = list(kwargs.values())[0]["task_id"]
+        elif seed is not None and isinstance(seed, dict) and "task_id" in seed:
+            target_task = seed.get("task_id")
         
         if target_task in TASK_ORDER:
             self._current_task_index = TASK_ORDER.index(target_task)
@@ -99,7 +109,7 @@ class IncidentTriageEnvironment(Environment):
             incident_report=scenario["incident_report"],
             task_id=task_id,
             step_number=0,
-            feedback=f"Welcome. Analyze the {task_id} incident and respond with your findings.",
+            feedback="Welcome. Analyze the incident report and respond with your findings.",
             done=False,
             reward=0.0,
         )
