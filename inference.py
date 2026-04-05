@@ -116,7 +116,7 @@ async def env_reset(http: httpx.AsyncClient) -> dict:
 
 
 async def env_step(http: httpx.AsyncClient, response_text: str) -> dict:
-    r = await http.post(f"{ENV_URL}/step", json={"response": response_text})
+    r = await http.post(f"{ENV_URL}/step", json={"action": {"response": response_text}})
     r.raise_for_status()
     return r.json()
 
