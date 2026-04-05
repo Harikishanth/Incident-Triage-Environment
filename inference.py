@@ -1,0 +1,172 @@
+"""
+Incident Triage Environment - Inference Script
+
+MANDATORY environment variables:
+    HF_TOKEN       Your Hugging Face API key
+    API_BASE_URL   LLM API endpoint (default: HF router)
+    MODEL_NAME     Model identifier (default: Qwen2.5-72B-Instruct)
+    ENV_URL        Environment URL (default: live HF Space)
+
+STDOUT FORMAT (strict):
+    [START] task=<name> env=<benchmark> model=<model_name>
+    [STEP]  step=<n> action=<str> reward=<0.00> done=<true|false> error=<msg|null>
+    [END]   success=<true|false> steps=<n> score=<0.00> rewards=<r1,r2,...>
+"""
+
+import asyncio
+import os
+import textwrap
+from typing import List, Optional
+
+from openai import OpenAI
+from incident_triage_env import IncidentTriageAction, IncidentTriageEnv
+
+# ── Environment variables ────────────────────────────────────────────────────
+HF_TOKEN = os.getenv("HF_TOKEN")
+API_KEY = HF_TOKEN or os.getenv("API_KEY")
+API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
+MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
+ENV_URL = os.getenv("ENV_URL", "https://dardrax-incident-triage-env.hf.space")
+
+if not HF_TOKEN:
+    raise ValueError("HF_TOKEN environment variable is required")
+
+# ── Constants ────────────────────────────────────────────────────────────────
+TASK_NAME = "incident_triage"
+BENCHMARK = "incident_triage_env"
+MAX_STEPS = 3           # 3 tasks: easy, medium, hard
+MAX_TOTAL_REWARD = 3.0  # 1.0 per task
+SUCCESS_SCORE_THRESHOLD = 0.5
+TEMPERATURE = 0.3
+MAX_TOKENS = 512
+
+SYSTEM_PROMPT = textwrap.dedent("""
+    You are an expert Site Reliability Engineer (SRE) with 10 years of
+    experience triaging production incidents at large-scale systems.
+
+    You will receive incident reports containing error logs, service signals,
+    and user complaints. Your job is to:
+    1. Identify which service is failing
+    2. Identify the root cause (not just symptoms)
+    3. Recommend prioritized actions to resolve the incident
+
+    Be specific. Reference exact service names and log entries.
+    Keep your response concise and structured.
+""").strip()
+
+
+# ── Logging (strict format required by hackathon) ────────────────────────────
+def log_start(task: str, env: str, model: str) -> None:
+    print(f"[START] task={task} env={env} model={model}", flush=True)
+
+
+def log_step(step: int, action: str, reward: float, done: bool, error: Optional[str]) -> None:
+    error_val = error if error else "null"
+    done_val = str(done).lower()
+    clean_action = action.replace("\n", " ").replace("\r", " ")[:200]
+    print(
+        f"[STEP] step={step} action={clean_action} reward={reward:.2f} done={done_val} error={error_val}",
+        flush=True,
+    )
+
+
+def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
+    rewards_str = ",".join(f"{r:.2f}" for r in rewards)
+    print(
+        f"[END] success={str(success).lower()} steps={steps} score={score:.2f} rewards={rewards_str}",
+        flush=True,
+    )
+
+
+# ── LLM call ─────────────────────────────────────────────────────────────────
+def get_model_response(client: OpenAI, incident_report: str, task_id: str, feedback: str) -> str:
+    user_prompt = textwrap.dedent(f"""
+        Task difficulty: {task_id}
+        Previous feedback: {feedback}
+
+        INCIDENT REPORT:
+        {incident_report}
+
+        Analyze this incident report and provide your findings.
+    """).strip()
+
+    try:
+        completion = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=TEMPERATURE,
+            max_tokens=MAX_TOKENS,
+            stream=False,
+        )
+        text = (completion.choices[0].message.content or "").strip()
+        return text if text else "Unable to analyze incident."
+    except Exception as exc:
+        print(f"[DEBUG] Model request failed: {exc}", flush=True)
+        return "Unable to analyze incident."
+
+
+# ── Main loop ─────────────────────────────────────────────────────────────────
+async def main() -> None:
+    llm_client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
+
+    rewards: List[float] = []
+    steps_taken = 0
+    score = 0.0
+    success = False
+
+    log_start(task=TASK_NAME, env=BENCHMARK, model=MODEL_NAME)
+
+    env = IncidentTriageEnv(base_url=ENV_URL)
+
+    try:
+        # Reset — receive the first incident report
+        result = env.reset()
+        obs = result.observation
+        done = result.done
+
+        for step in range(1, MAX_STEPS + 1):
+            if done:
+                break
+
+            # Get LLM response for this incident
+            response = get_model_response(
+                llm_client,
+                incident_report=obs.incident_report,
+                task_id=obs.task_id,
+                feedback=obs.feedback,
+            )
+
+            # Step the environment
+            result = env.step(IncidentTriageAction(response=response))
+            obs = result.observation
+            reward = result.reward or 0.0
+            done = result.done
+
+            rewards.append(reward)
+            steps_taken = step
+
+            log_step(step=step, action=response, reward=reward, done=done, error=None)
+
+            if done:
+                break
+
+        score = sum(rewards) / MAX_TOTAL_REWARD if MAX_TOTAL_REWARD > 0 else 0.0
+        score = min(max(score, 0.0), 1.0)
+        success = score >= SUCCESS_SCORE_THRESHOLD
+
+    except Exception as e:
+        print(f"[DEBUG] Error during episode: {e}", flush=True)
+
+    finally:
+        try:
+            env.close()
+        except Exception as e:
+            print(f"[DEBUG] env.close() error: {e}", flush=True)
+        log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

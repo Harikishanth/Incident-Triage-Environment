@@ -1,0 +1,14 @@
+spec_version: 1
+name: incident_triage_env
+version: 1.0.0
+description: "A production incident triage environment where an AI agent analyzes real-world error logs and identifies root causes, affected services, and prioritized remediation steps. 3 tasks: easy, medium, hard."
+type: space
+runtime: fastapi
+app: server.app:app
+port: 8000
+tags:
+  - openenv
+  - incident-triage
+  - sre
+  - production
+  - real-world

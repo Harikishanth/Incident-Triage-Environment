@@ -1,0 +1,10 @@
+# Dependencies for the incident_triage_env server.
+# Note: The canonical dependency source is pyproject.toml (used by uv sync in Docker).
+# This file is kept for reference only — do not install from here directly.
+#
+# See pyproject.toml [project].dependencies for the actual dependency list.
+openenv-core[core]>=0.2.2
+fastapi>=0.115.0
+uvicorn>=0.24.0
+httpx>=0.27.0
+openai>=1.0.0

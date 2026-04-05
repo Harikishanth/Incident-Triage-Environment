@@ -1,0 +1,38 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openenv-incident_triage_env"
+version = "0.1.0"
+description = "Incident Triage Env environment for OpenEnv"
+requires-python = ">=3.10"
+dependencies = [
+    # Core OpenEnv runtime (provides FastAPI server + HTTP client types)
+    "openenv-core[core]>=0.2.2",
+    # Inference script dependencies
+    "httpx>=0.27.0",
+    "openai>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.0.0",
+]
+
+[project.scripts]
+# Server entry point - enables running via: uv run --project . server
+# or: python -m incident_triage_env.server.app
+server = "incident_triage_env.server.app:main"
+
+[tool.setuptools]
+include-package-data = true
+packages = ["incident_triage_env", "incident_triage_env.server"]
+package-dir = { "incident_triage_env" = ".", "incident_triage_env.server" = "server" }
