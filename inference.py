@@ -22,14 +22,18 @@ import httpx
 from openai import OpenAI
 
 # ── Environment variables ────────────────────────────────────────────────────
-HF_TOKEN = os.getenv("HF_TOKEN")
-API_KEY = HF_TOKEN or os.getenv("OPENAI_API_KEY") or os.getenv("API_KEY")
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
+HF_TOKEN = os.getenv("HF_TOKEN")
+
+# Optional - if you use from_docker_image():
+LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
+
+# Custom for Incident Triage Environment
 ENV_URL = os.getenv("ENV_URL", "https://dardrax-incident-triage-env.hf.space")
 
-if not API_KEY:
-    raise ValueError("OPENAI_API_KEY or HF_TOKEN environment variable is required")
+if not HF_TOKEN:
+    raise ValueError("HF_TOKEN environment variable is required")
 
 # ── Constants ────────────────────────────────────────────────────────────────
 TASK_NAME_ENV = os.getenv("TASK_NAME")  # e.g., 'easy', 'medium', 'hard'
@@ -135,7 +139,7 @@ async def env_step(http: httpx.AsyncClient, response_text: str) -> dict:
 
 # ── Main loop ─────────────────────────────────────────────────────────────────
 async def main() -> None:
-    llm_client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
+    llm_client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
 
     rewards: List[float] = []
     steps_taken = 0
