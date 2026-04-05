@@ -58,10 +58,16 @@ class IncidentTriageEnvironment(Environment):
 
     def __init__(self):
         self._state = State(episode_id=str(uuid4()), step_count=0)
-        self._current_task_index = 0
-        self._current_scenario = None
         self._total_reward = 0.0
         self._pick_scenarios()
+        
+        target_task = os.getenv("TASK_NAME")
+        if target_task in TASK_ORDER:
+            self._current_task_index = TASK_ORDER.index(target_task)
+            self._is_single_task = True
+        else:
+            self._current_task_index = 0
+            self._is_single_task = False
 
     def _pick_scenarios(self):
         """Pick random scenarios for this episode."""
@@ -71,14 +77,13 @@ class IncidentTriageEnvironment(Environment):
             "hard": random.choice(HARD_SCENARIOS),
         }
 
-    def reset(self, task_id: Optional[str] = None) -> IncidentTriageObservation:
+    def reset(self) -> IncidentTriageObservation:
         self._state = State(episode_id=str(uuid4()), step_count=0)
         self._total_reward = 0.0
         self._pick_scenarios()
 
-        # Support TASK_NAME from environment variables or direct param
-        env_task = os.getenv("TASK_NAME")
-        target_task = task_id or env_task
+        # Support TASK_NAME purely from environment variables to comply with OpenEnv signatures
+        target_task = os.getenv("TASK_NAME")
         
         if target_task in TASK_ORDER:
             self._current_task_index = TASK_ORDER.index(target_task)

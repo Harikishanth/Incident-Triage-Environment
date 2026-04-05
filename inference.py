@@ -122,8 +122,7 @@ def get_model_response(client: OpenAI, incident_report: str, task_id: str, feedb
 
 # ── Environment HTTP calls ────────────────────────────────────────────────────
 async def env_reset(http: httpx.AsyncClient) -> dict:
-    # Pass TASK_NAME if available to target specific evaluation levels
-    r = await http.post(f"{ENV_URL}/reset", json={"task_id": TASK_NAME_ENV})
+    r = await http.post(f"{ENV_URL}/reset", json={})
     r.raise_for_status()
     return r.json()
 
