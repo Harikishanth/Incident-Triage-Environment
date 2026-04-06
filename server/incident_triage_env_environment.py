@@ -115,6 +115,16 @@ class IncidentTriageEnvironment(Environment):
         )
 
     def step(self, action: IncidentTriageAction) -> IncidentTriageObservation:
+        if self._current_task_index >= len(TASK_ORDER):
+            return IncidentTriageObservation(
+                incident_report="All incidents resolved.",
+                task_id="complete",
+                step_number=self._state.step_count,
+                feedback="Episode is already done. Please reset the environment.",
+                done=True,
+                reward=0.0,
+            )
+
         self._state.step_count += 1
 
         current_task_id = TASK_ORDER[self._current_task_index]
