@@ -124,21 +124,16 @@ def get_model_response(client: OpenAI, incident_report: str, task_id: str, feedb
     return "Unable to analyze incident after retries."
 
 
-# ── Environment HTTP calls ────────────────────────────────────────────────────
-async def env_reset(http: httpx.AsyncClient) -> dict:
-    r = await http.post(f"{ENV_URL}/reset", json={})
-    r.raise_for_status()
-    return r.json()
-
-
-async def env_step(http: httpx.AsyncClient, response_text: str) -> dict:
-    r = await http.post(f"{ENV_URL}/step", json={"action": {"response": response_text}})
-    r.raise_for_status()
-    return r.json()
+# ── Environment Client ────────────────────────────────────────────────────────
+import sys
+# Inject path to allow importing client.py and models.py directly
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from client import IncidentTriageEnv
+from models import IncidentTriageAction
 
 
 # ── Main loop ─────────────────────────────────────────────────────────────────
-async def main() -> None:
+def main() -> None:
     llm_client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
 
     rewards: List[float] = []
@@ -150,11 +145,18 @@ async def main() -> None:
     log_start(task="incident_triage", env=BENCHMARK, model=MODEL_NAME)
 
     try:
-        async with httpx.AsyncClient(timeout=60.0) as http:
+        # Use stateful EnvClient mapped over WebSockets
+        with IncidentTriageEnv(base_url=ENV_URL).sync() as env:
+            
             # Reset — get first incident report
-            result = await env_reset(http)
-            obs = result["observation"]
-            done = result.get("done", False)
+            # We pass TASK_NAME_ENV if a judge specifically wants to isolate a level
+            kwargs = {}
+            if TASK_NAME_ENV:
+                kwargs["task_id"] = TASK_NAME_ENV
+            
+            result = env.reset(**kwargs)
+            obs = result.observation
+            done = result.done
 
             # Define iteration limit based on whether we are in single-task mode
             loop_limit = 1 if TASK_NAME_ENV else MAX_STEPS
@@ -167,16 +169,18 @@ async def main() -> None:
                 # Ask LLM to analyze this incident
                 response = get_model_response(
                     llm_client,
-                    incident_report=obs["incident_report"],
-                    task_id=obs["task_id"],
-                    feedback=obs["feedback"],
+                    incident_report=obs.incident_report,
+                    task_id=obs.task_id,
+                    feedback=obs.feedback,
                 )
 
                 # Submit to grader
-                result = await env_step(http, response)
-                obs = result["observation"]
-                reward = result.get("reward") or 0.0
-                done = result.get("done", False)
+                result = env.step(IncidentTriageAction(response=response))
+                obs = result.observation
+                reward = result.reward
+
+                # When the environment hits final state, step_result.done = True
+                done = result.done
 
                 rewards.append(reward)
                 steps_taken = step
@@ -198,4 +202,4 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
