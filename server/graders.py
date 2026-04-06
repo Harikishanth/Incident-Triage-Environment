@@ -297,25 +297,46 @@ def grade_medium(response: str, scenario: dict) -> float:
     r = response.lower()
     score = 0.0
 
-    # Root cause identification (50%)
-    root_hits = sum(1 for kw in scenario["root_cause_keywords"] if kw in r)
-    if root_hits >= 1:
-        score += 0.5
+    target_signal = ""
+    if scenario["id"] == "medium_gpu": target_signal = "signal b"
+    if scenario["id"] == "medium_cache": target_signal = "signal c"
+    if scenario["id"] == "medium_cert": target_signal = "signal c"
 
-    # Red herring OR action identification (30%)
-    # Sometimes models suggest an action rather than explicitly saying "this is a red herring"
-    # We will give points if they either dismiss the herring OR give a good structured response
-    red_hits = sum(1 for kw in scenario["red_herring_keywords"] if kw in r)
-    action_hits = sum(1 for kw in ["action", "recommend", "step", "fix", "resolution"] if kw in r)
-    if red_hits >= 1 or action_hits >= 1:
+    # Root cause identification (40%)
+    root_hits = sum(1 for kw in scenario["root_cause_keywords"] if kw in r)
+    causal_terms = ["because", "due to", "since", "causes", "resulting", "as a result", "leads to", "indicates"]
+    has_explanation = any(term in r for term in causal_terms)
+
+    # Require at least 2 keywords AND an explanation of WHY for full credit
+    if root_hits >= 2 and has_explanation:
+        score += 0.4
+    elif root_hits >= 1:
+        score += 0.15
+
+    # Red herring explicit identification (30%)
+    # Must explicitly identify the red herring using explicit dismissal terms
+    dismissal_terms = ["red herring", "not the cause", "false alarm", "unrelated", "coincidence", "normal", "healthy"]
+    dismissal_hits = sum(1 for kw in dismissal_terms if kw in r)
+    signal_ident_hits = sum(1 for kw in scenario["red_herring_keywords"] if kw in r)
+    
+    red_herring_identified = dismissal_hits >= 1 and signal_ident_hits >= 1
+    if red_herring_identified:
         score += 0.3
 
-    # Symptom identification (20%)
+    # Symptom identification (30%)
     symptom_hits = sum(1 for kw in scenario["symptom_keywords"] if kw in r)
     if symptom_hits >= 1:
-        score += 0.2
+        score += 0.3
 
-    return round(min(score, 1.0), 2)
+    # Require the agent to explicitly name the correct signal letter (A, B, or C) as root cause
+    if target_signal and target_signal not in r and target_signal.replace(" ", "") not in r:
+        score -= 0.2
+
+    # The red herring dismissal should be REQUIRED not optional — if the agent doesn't explicitly identify which signal is the red herring, cap the score at 0.5
+    if not red_herring_identified:
+        score = min(score, 0.5)
+
+    return round(max(0.0, min(score, 1.0)), 2)
 
 
 def grade_hard(response: str, scenario: dict) -> float:
@@ -332,37 +353,58 @@ def grade_hard(response: str, scenario: dict) -> float:
     mid_part = " ".join(lines[third:2 * third])
     last_part = " ".join(lines[2 * third:])
 
-    # First action (50%) — most important
-    first_in_position = any(kw in first_part for kw in scenario["first_keywords"])
-    first_anywhere = any(kw in r for kw in scenario["first_keywords"])
+    wrong_service_penalty = 0.0
+    # Add a penalty if the wrong service is considered the primary failure
+    if scenario["id"] == "hard_auth":
+        if "inventoryservice" in first_part or "paymentservice" in first_part:
+            wrong_service_penalty = 0.2
+    elif scenario["id"] == "hard_cascade":
+        if "userdb" in first_part or "cartservice" in first_part:
+            wrong_service_penalty = 0.2
+    elif scenario["id"] == "hard_deploy":
+        if "feedservice" in first_part or "messagingservice" in first_part:
+            wrong_service_penalty = 0.2
 
+    # First action (40%)
+    first_in_position = any(kw in first_part for kw in scenario["first_keywords"])
     if first_in_position:
-        score += 0.5
-    elif first_anywhere:
-        score += 0.25
+        score += 0.40
 
     # Second action (30%)
     second_in_position = any(kw in mid_part for kw in scenario["second_keywords"])
-    second_anywhere = any(kw in r for kw in scenario["second_keywords"])
-
     if second_in_position:
-        score += 0.3
-    elif second_anywhere:
-        score += 0.15
+        score += 0.30
 
     # Third action (20%)
     third_in_position = any(kw in last_part for kw in scenario["third_keywords"])
-    third_anywhere = any(kw in r for kw in scenario["third_keywords"])
-
     if third_in_position:
-        score += 0.2
-    elif third_anywhere:
-        score += 0.1
+        score += 0.20
 
-    # Bonus for explicit prioritization language
+    # Exclusivity penalty: if they dump all keywords in the first part, penalize heavily.
+    # LLMs tend to summarize everything at the top. We want to dock points for this.
+    exclusivity_penalty = 0.0
+    if any(kw in first_part for kw in scenario["second_keywords"]):
+        exclusivity_penalty += 0.15
+    if any(kw in first_part for kw in scenario["third_keywords"]):
+        exclusivity_penalty += 0.15
+
+    # Bonus for explicit prioritization language (10%)
     priority_terms = ["first", "second", "third", "priority", "immediately", "then", "finally", "step 1", "step 2", "step 3"]
     priority_hits = sum(1 for term in priority_terms if term in r)
     if priority_hits >= 3:
-        score = min(1.0, score + 0.1)
+        score += 0.10
 
-    return round(min(score, 1.0), 2)
+    # Apply strict penalties
+    score -= wrong_service_penalty
+    score -= exclusivity_penalty
+
+    # Cap if the most critical fix isn't mentioned correctly in the FIRST third
+    if not first_in_position:
+        score = min(score, 0.4)
+
+    # Require at least 5 lines of structured response for any score above 0.5
+    if len(lines) < 5:
+        score = min(score, 0.3)
+
+    return round(max(0.0, min(score, 1.0)), 2)
+
