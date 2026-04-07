@@ -86,14 +86,24 @@ class IncidentTriageEnvironment(Environment):
         # Handles cases where judge passes dict directly or uses keyword arguments
         target_task = os.getenv("TASK_NAME")
         
-        # Check kwargs
-        if "task_id" in kwargs:
+        # 1. Standard Gymnasium options support (Crucial for OpenEnv Validator Phase 2)
+        options = kwargs.get("options", {})
+        if options and isinstance(options, dict) and "task_name" in options:
+            target_task = options["task_name"]
+            
+        # 2. Support custom HTTP payload mappings natively mapping task_name or task_id
+        if "task_name" in kwargs:
+            target_task = kwargs["task_name"]
+        elif "task_id" in kwargs:
             target_task = kwargs["task_id"]
-        # Handle the case where the judge accidentally passes a dict directly instead of kwargs
-        elif len(kwargs) > 0 and isinstance(list(kwargs.values())[0], dict) and "task_id" in list(kwargs.values())[0]:
-            target_task = list(kwargs.values())[0]["task_id"]
-        elif seed is not None and isinstance(seed, dict) and "task_id" in seed:
-            target_task = seed.get("task_id")
+            
+        # 3. Fallback for improperly destructured kwargs occasionally sent by testing scripts
+        elif seed is not None and isinstance(seed, dict):
+            target_task = seed.get("task_name", seed.get("task_id", target_task))
+        elif len(kwargs) > 0 and isinstance(list(kwargs.values())[0], dict):
+            inner = list(kwargs.values())[0]
+            if "task_name" in inner or "task_id" in inner:
+                target_task = inner.get("task_name", inner.get("task_id"))
         
         if target_task in TASK_ORDER:
             self._current_task_index = TASK_ORDER.index(target_task)
