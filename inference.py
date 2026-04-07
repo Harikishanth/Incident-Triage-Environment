@@ -69,7 +69,7 @@ def log_start(task: str, env: str, model: str) -> None:
 def log_step(step: int, action: str, reward: float, done: bool, error: Optional[str]) -> None:
     error_val = error if error else "null"
     done_val = str(done).lower()
-    clean_action = action.replace("\n", " ").replace("\r", " ")[:200]
+    clean_action = action.replace("\n", " ").replace("\r", " ")[:1000]
     print(
         f"[STEP] step={step} action={clean_action} reward={reward:.2f} done={done_val} error={error_val}",
         flush=True,
@@ -191,7 +191,8 @@ def main() -> None:
                     break
 
         score = sum(rewards) / total_possible_reward if total_possible_reward > 0 else 0.0
-        score = min(max(score, 0.0), 1.0)
+        # STRICT ADMIN FIX: Ensure the overall session score also clamps between 0.01 and 0.99
+        score = round(min(max(score, 0.01), 0.99), 2)
         success = score >= SUCCESS_SCORE_THRESHOLD
 
     except Exception as e:

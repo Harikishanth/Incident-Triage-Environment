@@ -272,6 +272,10 @@ Question: Write a PRIORITIZED action plan — FIRST, SECOND, THIRD steps to rest
 
 # ── Graders ──────────────────────────────────────────────────────────────────
 
+def safe_reward(raw: float) -> float:
+    """Clamp the reward strictly between 0.01 and 0.99 to pass OpenEnv validation constraints."""
+    return round(min(max(float(raw), 0.01), 0.99), 2)
+
 def grade_easy(response: str, scenario: dict) -> float:
     r = response.lower()
     score = 0.0
@@ -290,7 +294,8 @@ def grade_easy(response: str, scenario: dict) -> float:
     if any(term in r for term in root_cause_terms):
         score = min(1.0, score + 0.1)
 
-    return round(min(score, 1.0), 2)
+    # Validate and cap easy score to 0.95 max
+    return safe_reward(min(score, 0.95))
 
 
 def grade_medium(response: str, scenario: dict) -> float:
@@ -302,41 +307,52 @@ def grade_medium(response: str, scenario: dict) -> float:
     if scenario["id"] == "medium_cache": target_signal = "signal c"
     if scenario["id"] == "medium_cert": target_signal = "signal c"
 
-    # Root cause identification (40%)
+    # Root cause identification (35%)
+    # Requires 2+ keywords AND explicit causal explanation connecting them
     root_hits = sum(1 for kw in scenario["root_cause_keywords"] if kw in r)
     causal_terms = ["because", "due to", "since", "causes", "resulting", "as a result", "leads to", "indicates"]
     has_explanation = any(term in r for term in causal_terms)
 
-    # Require at least 2 keywords AND an explanation of WHY for full credit
     if root_hits >= 2 and has_explanation:
-        score += 0.4
-    elif root_hits >= 1:
+        score += 0.35
+    elif root_hits >= 1 and has_explanation:
         score += 0.15
+    elif root_hits >= 1:
+        score += 0.05
 
-    # Red herring explicit identification (30%)
-    # Must explicitly identify the red herring using explicit dismissal terms
-    dismissal_terms = ["red herring", "not the cause", "false alarm", "unrelated", "coincidence", "normal", "healthy"]
-    dismissal_hits = sum(1 for kw in dismissal_terms if kw in r)
+    # Red herring explicit identification (30%) — REQUIRED for full score
+    # Strict: must use explicit flag language + name the red herring signal/service
+    # "not the cause" is deliberately excluded — too common in any structured response
+    strict_dismissal_terms = [
+        "red herring", "false alarm", "misleading", "symptom only",
+        "coincidental", "irrelevant", "not related"
+    ]
+    dismissal_hits = sum(1 for kw in strict_dismissal_terms if kw in r)
     signal_ident_hits = sum(1 for kw in scenario["red_herring_keywords"] if kw in r)
-    
+
+    # Both conditions must be satisfied: explicit dismissal word AND naming the red herring signal
     red_herring_identified = dismissal_hits >= 1 and signal_ident_hits >= 1
     if red_herring_identified:
-        score += 0.3
+        score += 0.30
 
-    # Symptom identification (30%)
+    # Symptom identification (15%)
     symptom_hits = sum(1 for kw in scenario["symptom_keywords"] if kw in r)
     if symptom_hits >= 1:
-        score += 0.3
+        score += 0.15
 
-    # Require the agent to explicitly name the correct signal letter (A, B, or C) as root cause
-    if target_signal and target_signal not in r and target_signal.replace(" ", "") not in r:
-        score -= 0.2
+    # Correct signal letter explicitly named as root cause (10% bonus)
+    if target_signal and (target_signal in r):
+        score += 0.10
 
-    # The red herring dismissal should be REQUIRED not optional — if the agent doesn't explicitly identify which signal is the red herring, cap the score at 0.5
+    # HARD CAP: If the agent doesn't explicitly identify the red herring with strict language,
+    # cap at 0.45 regardless of other points
     if not red_herring_identified:
-        score = min(score, 0.5)
+        score = min(score, 0.45)
 
-    return round(max(0.0, min(score, 1.0)), 2)
+    # Medium task ceiling: even a perfect response cannot exceed 0.80 by design
+    # This ensures medium is meaningfully harder than easy
+    # and differentiates model capability — only models that nail every category reach 0.80
+    return safe_reward(min(score, 0.80))
 
 
 def grade_hard(response: str, scenario: dict) -> float:
@@ -406,5 +422,6 @@ def grade_hard(response: str, scenario: dict) -> float:
     if len(lines) < 5:
         score = min(score, 0.3)
 
-    return round(max(0.0, min(score, 1.0)), 2)
+    # Cap hard explicitly at 0.75
+    return safe_reward(min(score, 0.75))
 
