@@ -165,19 +165,19 @@ Running `inference.py` with `Qwen/Qwen2.5-72B-Instruct` against the live Hugging
 
 | Task | Score |
 |------|-------|
-| Easy | 1.00 |
-| Medium | 0.80 |
-| Hard | 0.55 |
-| **Total (normalized)** | **0.78** |
+| Easy | 0.95 |
+| Medium | 0.50 |
+| Hard | 0.50 |
+| **Total (normalized)** | **0.65** |
 
 Scores are reproducible across runs with `TEMPERATURE=0.0`. `inference.py` includes a **retry mechanism** to gracefully handle HuggingFace routing timeouts/errors when scoring natively.
 
 ```
 [START] task=incident_triage env=incident_triage_env model=Qwen/Qwen2.5-72B-Instruct
-[STEP] step=1 action=The root cause is... reward=1.00 done=false error=null
-[STEP] step=2 action=Based on the logs... reward=0.80 done=false error=null
-[STEP] step=3 action=First, rollback AuthService... reward=0.55 done=true error=null
-[END] success=true steps=3 score=0.78 rewards=1.00,0.80,0.55
+[STEP] step=1 action=The root cause is... reward=0.95 done=false error=null
+[STEP] step=2 action=Based on the logs... reward=0.50 done=false error=null
+[STEP] step=3 action=First, rollback AuthService... reward=0.50 done=true error=null
+[END] success=true steps=3 score=0.65 rewards=0.95,0.50,0.50
 ```
 
 ## Running Locally
