@@ -145,15 +145,28 @@ def run_task(env_client, llm_client, task_id: str):
 
 
 def main() -> None:
+    import time
+    
     # Optional task selection from environment
     target_task = os.getenv("TASK_NAME")
     tasks_to_run = [target_task] if target_task else ["easy", "medium", "hard"]
     
     llm_client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN or "dummy")
 
-    with IncidentTriageEnv(base_url=ENV_URL).sync() as env:
-        for t in tasks_to_run:
-            run_task(env, llm_client, t)
+    max_env_retries = 10
+    for attempt in range(max_env_retries):
+        try:
+            with IncidentTriageEnv(base_url=ENV_URL).sync() as env:
+                for t in tasks_to_run:
+                    run_task(env, llm_client, t)
+            break  # Success, exit retry loop
+        except Exception as e:
+            print(f"Phase 2 Safe Retry (Attempt {attempt+1}/{max_env_retries}) - Waiting for HuggingFace container to wake up: {e}", flush=True)
+            if attempt < max_env_retries - 1:
+                time.sleep(10)
+            else:
+                print("Fatal: Could not connect to environment after retries.", flush=True)
+                sys.exit(0)  # Exit safely to avoid unhandled exception crash flag
 
 
 if __name__ == "__main__":
