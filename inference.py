@@ -65,10 +65,10 @@ def log_step(step: int, action: str, reward: float, done: bool, error: Optional[
         flush=True,
     )
 
-def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
+def log_end(task: str, success: bool, steps: int, score: float, rewards: List[float]) -> None:
     rewards_str = ",".join(f"{r:.2f}" for r in rewards)
     print(
-        f"[END] success={str(success).lower()} steps={steps} score={score:.2f} rewards={rewards_str}",
+        f"[END] task={task} success={str(success).lower()} steps={steps} score={score:.2f} rewards={rewards_str}",
         flush=True,
     )
 
@@ -141,7 +141,7 @@ def run_task(env_client, llm_client, task_id: str):
     except Exception as e:
         score = 0.0
     finally:
-        log_end(success=success, steps=1, score=score, rewards=rewards)
+        log_end(task=task_id, success=success, steps=1, score=score, rewards=rewards)
 
 
 def main() -> None:
