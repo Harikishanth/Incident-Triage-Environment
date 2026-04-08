@@ -70,6 +70,39 @@ asyncio.run(main())
 
 ---
 
+## 💡 Why This Problem?
+Production outages cost organizations millions of dollars per hour. Resolving them involves:
+- **Noise Filtering** — pinpointing the source failing service amidst thousands of downstream symptomatic alerts.
+- **Deductive Reasoning** — separating the actual root cause from false red-herrings.
+- **Strict Execution Order** — knowing that restarting a database *before* failing over to a replica causes catastrophic data loss.
+
+No existing automated benchmark accurately evaluates LLM agents on SRE disaster recovery. **Incident Triage Env** fills this gap by testing agents dynamically across all dimensions simultaneously using zero-LLM deterministic bounds.
+
+---
+
+## 🚀 Try It Now (No Setup Required)
+The environment exposes standard OpenEnv HTTP endpoints natively deployed on HuggingFace Spaces.
+
+```bash
+# Health check
+curl -X GET https://dardrax-incident-triage-env.hf.space/health
+
+# Pull dynamic multi-tier tasks
+curl -X GET https://dardrax-incident-triage-env.hf.space/tasks
+
+# Start a specific evaluation session
+curl -X POST https://dardrax-incident-triage-env.hf.space/reset \
+     -H "Content-Type: application/json" \
+     -d '{"task_id": "medium"}'
+
+# Submit an Agent Action
+curl -X POST https://dardrax-incident-triage-env.hf.space/step \
+     -H "Content-Type: application/json" \
+     -d '{"action": {"response": "Rollback the payment service."}}'
+```
+
+---
+
 ## Agent Loop Architecture
 
 ```mermaid
@@ -120,6 +153,17 @@ The environment evaluates agents across 3 distinct difficulty tiers, with scenar
 | `feedback` | `str` | Textual feedback from the deterministic evaluator regarding missing keywords or incorrect scoping. |
 | `done` | `bool` | Episode completion flag. |
 | `reward` | `float` | Normalized reward score (`0.00` – `1.00`). |
+
+**Example Observation Payload:**
+```json
+{
+  "incident_report": "🚨 INCIDENT REPORT — 14:23 UTC\n[FATAL] GatewayTimeout on path /api/checkout ...",
+  "task_id": "medium",
+  "feedback": "Task scored: 0.90. Root cause correctly identified. Moving to next incident.",
+  "done": false,
+  "reward": 0.9
+}
+```
 
 ---
 
