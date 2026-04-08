@@ -237,6 +237,18 @@ The deployed space automatically binds to HuggingFace's exposed infrastructure u
 
 ---
 
+## 🔮 Future Roadmap
+
+To evolve this environment into an enterprise-standard AI benchmark, the following architectural upgrades are mapped for Phase 3:
+
+*   **Procedural Log Generation (Anti-Contamination)**: Migrating from static dictionaries to dynamic generators that fuzz timestamps, IP structures, and latency metrics on every execution to mathematically guarantee zero benchmark memorization.
+*   **Interactive Tool-Use (POMDP Arch)**: Maturing from zero-shot ingestion to a multi-step Partially Observable Markov Decision Process where agents must actively invoke `read_logs()` and `query_metrics()` endpoints to hunt down errors.
+*   **Fuzzy Semantic Determinism**: Integrating lightweight Levenshtein-distance metrics into the heuristic grading algorithm to accommodate LLM vocabulary variance while strictly avoiding the unreliability of LLM-as-a-judge patterns.
+*   **Massive Outage Scaling**: Expanding the incident repertoire from 9 to 50+ hyper-specific cloud catastrophes (e.g., Cache Stampedes, BGP Routing Leaks, Orphaned Zombie Processes).
+*   **Live SRE War-Room UI**: Developing a sleek Vue/React dashboard to visually plot the LLM agent's real-time reasoning traces against a live system architecture topology map.
+
+---
+
 ## Citation
 
 ```bibtex
