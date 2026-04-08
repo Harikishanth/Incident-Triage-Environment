@@ -4,7 +4,7 @@ emoji: "🚨"
 colorFrom: red
 colorTo: gray
 sdk: docker
-app_port: 8000
+app_port: 7860
 license: mit
 base_path: /web
 tags:
