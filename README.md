@@ -29,6 +29,14 @@ short_description: Deterministic evaluation of AI SRE capabilities
 
 A zero-LLM deterministic OpenEnv reinforcement learning environment evaluating the root-cause analysis capabilities of AI agents against real-world production outages. 
 
+```mermaid
+xychart-beta
+    title "Incident RCA Resolution Leaderboard (0-Shot)"
+    x-axis ["Llama-3.3-70B", "Qwen-72B", "Gemma-2-27B", "Hermes-3-8B", "Mistral-Nemo"]
+    y-axis "Heuristic Score" 0.00 --> 1.00
+    bar [0.83, 0.83, 0.40, 0.28, 0.25]
+```
+
 Production incidents cost millions in downtime. This environment tests whether an LLM can simulate a Staff Site Reliability Engineer (SRE): reading raw failure logs, filtering out downstream system symptoms, identifying the root cause, and synthesizing a prioritized step-by-step remediation plan.
 
 ## Quick Start
@@ -210,14 +218,14 @@ TASK_NAME=hard uv run python inference.py
 git clone https://github.com/Harikishanth/Incident-Triage-Environment.git
 cd Incident-Triage-Environment
 uv sync
-uvicorn server.app:app --reload --host 0.0.0.0 --port 8000
+uvicorn server.app:app --reload --host 0.0.0.0 --port 7860
 ```
 
 ### Docker
 
 ```bash
 docker build -t incident_triage_env:latest .
-docker run -p 8000:8000 incident_triage_env:latest
+docker run -p 7860:7860 incident_triage_env:latest
 ```
 
 ### Hugging Face Space (OpenEnv Push)
@@ -225,7 +233,7 @@ docker run -p 8000:8000 incident_triage_env:latest
 ```bash
 openenv push --repo-id DarDrax/incident-triage-env
 ```
-The deployed space automatically binds to HuggingFace's exposed infrastructure using port 8000 and natively provisions the OpenEnv Web UI, WebSocket (`/ws`), and automatic `/tasks` endpoints.
+The deployed space automatically binds to HuggingFace's exposed infrastructure using port 7860 and natively provisions the OpenEnv Web UI, WebSocket (`/ws`), and automatic `/tasks` endpoints.
 
 ---
 
